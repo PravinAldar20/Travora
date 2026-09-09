@@ -1,0 +1,220 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             String               @id @default(uuid())
+  email          String               @unique
+  passwordHash   String
+  name           String
+  avatarUrl      String?
+  homeCurrency   String               @default("USD")
+  language       String               @default("en")
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  preferences    Preference?
+  sessions       UserSession[]
+  trips          Trip[]
+  savedPlaces    SavedPlace[]
+  bookings       HotelBooking[]
+  translations   TranslationHistory[]
+}
+
+model UserSession {
+  id           String   @id @default(uuid())
+  userId       String
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Preference {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  travelStyle         String   @default("Standard")
+  interests           String   @default("[]") // JSON stringified array of interests
+  foodPreferences     String   @default("[]") // JSON stringified array
+  transportPreference String   @default("Public Transit & Walking")
+  hotelPreference     String   @default("Mid-range Boutique")
+  walkingTolerance    String   @default("Moderate")
+  activityIntensity   String   @default("Balanced")
+  indoorOutdoorPref   String   @default("Balanced")
+  morningEveningPref  String   @default("Morning Active")
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Trip {
+  id              String          @id @default(uuid())
+  userId          String
+  title           String
+  destination     String
+  country         String
+  city            String
+  latitude        Float
+  longitude       Float
+  startDate       DateTime
+  endDate         DateTime
+  adults          Int             @default(1)
+  children        Int             @default(0)
+  budget          Float           @default(1500)
+  currency        String          @default("USD")
+  travelStyle     String          @default("Standard")
+  interests       String          @default("[]") // JSON array string
+  hotelId         String?
+  status          String          @default("planning") // planning, active, completed
+  shareId         String          @unique @default(uuid())
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  selectedHotel   Hotel?          @relation(fields: [hotelId], references: [id], onDelete: SetNull)
+  itineraryItems  ItineraryItem[]
+  bookings        HotelBooking[]
+
+  @@index([userId])
+}
+
+model ItineraryItem {
+  id                   String   @id @default(uuid())
+  tripId               String
+  dayNumber            Int
+  orderIndex           Int
+  name                 String
+  category             String   @default("attraction") // attraction, meal, hotel, transit, activity
+  description          String
+  location             String
+  latitude             Float
+  longitude            Float
+  openingHours         String?
+  suggestedStartTime   String   // e.g. "09:00"
+  durationMinutes      Int      @default(90)
+  cost                 Float    @default(0)
+  currency             String   @default("USD")
+  distanceKm           Float?   @default(0)
+  travelTimeMinutes    Int?     @default(0)
+  transportationMethod String?  @default("Walking") // Walking, Driving, Transit
+  rating               Float?   @default(4.5)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  trip                 Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, dayNumber])
+}
+
+model Hotel {
+  id                 String         @id @default(uuid())
+  name               String
+  destination        String
+  city               String
+  country            String
+  address            String
+  latitude           Float
+  longitude          Float
+  pricePerNight      Float
+  currency           String         @default("USD")
+  rating             Float          @default(4.2)
+  reviewsCount       Int            @default(120)
+  images             String         @default("[]") // JSON array string
+  amenities          String         @default("[]") // JSON array string
+  roomOptions        String         @default("[]") // JSON array string
+  cancellationPolicy String         @default("Free cancellation up to 48 hours prior")
+  provider           String         @default("Travora Direct")
+  bookingUrl         String
+  createdAt          DateTime       @default(now())
+
+  trips              Trip[]
+  bookings           HotelBooking[]
+}
+
+model HotelBooking {
+  id               String   @id @default(uuid())
+  userId           String
+  tripId           String?
+  hotelId          String
+  checkIn          DateTime
+  checkOut         DateTime
+  guests           Int      @default(1)
+  rooms            Int      @default(1)
+  status           String   @default("confirmed") // confirmed, pending, cancelled
+  provider         String   @default("Booking.com")
+  bookingReference String   @unique
+  bookingUrl       String
+  totalAmount      Float
+  currency         String   @default("USD")
+  createdAt        DateTime @default(now())
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip             Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  hotel            Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Restaurant {
+  id           String   @id @default(uuid())
+  destination  String
+  name         String
+  cuisine      String
+  priceLevel   String   // $, $$, $$$, $$$$
+  avgCost      Float    @default(25)
+  currency     String   @default("USD")
+  rating       Float    @default(4.6)
+  latitude     Float
+  longitude    Float
+  address      String
+  image        String
+  dietary      String   @default("[]") // Vegetarian, Halal, etc.
+  createdAt    DateTime @default(now())
+}
+
+model SavedPlace {
+  id          String   @id @default(uuid())
+  userId      String
+  placeType   String   // hotel, restaurant, attraction, destination, phrase
+  placeId     String
+  name        String
+  destination String
+  metadata    String   @default("{}") // JSON string with full details
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, placeType, placeId])
+  @@index([userId])
+}
+
+model TranslationHistory {
+  id             String   @id @default(uuid())
+  userId         String
+  originalText   String
+  sourceLang     String
+  targetLang     String
+  translatedText String
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model TravelPhrase {
+  id          String   @id @default(uuid())
+  category    String   // greetings, hotel, restaurant, transportation, shopping, directions, emergency
+  phraseEn    String
+  translation String?
+  targetLang  String?
+  createdAt   DateTime @default(now())
+}
